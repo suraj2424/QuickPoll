@@ -1,11 +1,16 @@
-fastapi>=0.68.0,<0.69.0
-uvicorn>=0.15.0,<0.16.0
-sqlalchemy>=1.4.0,<2.0.0
-alembic>=1.7.0,<2.0.0
-python-jose[cryptography]>=3.3.0,<4.0.0
-passlib[bcrypt]>=1.7.4,<2.0.0
-python-multipart>=0.0.5,<0.0.6
-python-dotenv>=0.19.0,<0.20.0
-websockets>=10.0,<11.0
-pydantic>=1.8.0,<2.0.0
-python-dateutil>=2.8.2,<3.0.0
+# FastAPI framework and ASGI server (includes WebSocket support)
+fastapi==0.120.1
+uvicorn[standard]==0.38.0
+
+# Database ORM (works with SQLite via Python's built-in sqlite3 module)
+sqlalchemy==2.0.44
+
+# Environment configuration
+python-dotenv==1.2.1
+
+# Data validation with email support
+pydantic[email]==2.12.3
+
+# Note: WebSocket support is included in FastAPI
+# Note: SQLite support is built into Python's standard library
+
