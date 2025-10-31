@@ -1,0 +1,10 @@
+.env
+.env.local
+
+__pycache__
+
+venv
+
+polls.db
+
+__pycache__
