@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -9,7 +9,7 @@ class Option(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String(500), nullable=False)
     poll_id = Column(Integer, ForeignKey("polls.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # relationships
     poll = relationship("Poll", back_populates="options")

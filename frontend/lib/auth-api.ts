@@ -11,10 +11,11 @@ interface LoginResponse {
   message: string;
   user_id: number;
   username: string;
+  role: 'user' | 'admin';
 }
 
 export async function registerUser(payload: RegisterPayload): Promise<AuthUser> {
-  const result = await apiPost<{ id: number; username: string }>(
+  const result = await apiPost<{ id: number; username: string; role: 'user' | 'admin' }>(
     "/auth/register",
     payload,
   );
@@ -22,6 +23,7 @@ export async function registerUser(payload: RegisterPayload): Promise<AuthUser> 
   return {
     userId: result.id,
     username: result.username,
+    role: result.role,
   };
 }
 
@@ -37,16 +39,18 @@ export async function loginUser(
   return {
     userId: result.user_id,
     username: result.username,
+    role: result.role,
   };
 }
 
 export async function fetchCurrentUser(userId: number): Promise<AuthUser> {
-  const result = await apiGet<{ id: number; username: string }>(
+  const result = await apiGet<{ id: number; username: string; role: 'user' | 'admin' }>(
     `/auth/me/${userId}`,
   );
 
   return {
     userId: result.id,
     username: result.username,
+    role: result.role,
   };
 }

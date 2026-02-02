@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { PollCard } from "@/components/polls/PollCard";
 import { PollSkeleton } from "@/components/polls/PollSkeleton";
 import { usePollData } from "@/context/PollDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthModal } from "@/context/AuthModalContext";
 import { cn } from "@/lib/utils";
+import { Search, X } from "lucide-react";
+import type { Poll } from "@/lib/types";
+
+type FilterStatus = "all" | "active" | "closed";
+type SortOption = "recent" | "popular" | "votes";
 
 export default function ExplorePage() {
   const {
     activePolls,
     closedPolls,
-    featuredClosedPolls,
     loading,
     error,
     busyPollIds,
@@ -24,18 +28,63 @@ export default function ExplorePage() {
   const { open: openAuthModal } = useAuthModal();
   const isAuthenticated = status === "authenticated" && Boolean(user);
 
-  const busyIds = useMemo(() => busyPollIds, [busyPollIds]);
+  const [filter, setFilter] = useState<FilterStatus>("all");
+  const [sort, setSort] = useState<SortOption>("recent");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Filter and sort polls
+  const polls = useMemo(() => {
+    let result: Poll[] = [];
+
+    if (filter === "all") {
+      result = [...activePolls, ...closedPolls];
+    } else if (filter === "active") {
+      result = [...activePolls];
+    } else {
+      result = [...closedPolls];
+    }
+
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q)
+      );
+    }
+
+    if (sort === "recent") {
+      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sort === "popular") {
+      result.sort((a, b) => b.total_likes - a.total_likes);
+    } else {
+      result.sort((a, b) => b.total_votes - a.total_votes);
+    }
+
+    return result;
+  }, [activePolls, closedPolls, filter, debouncedSearch, sort]);
+
+  const clearAll = useCallback(() => {
+    setFilter("all");
+    setSort("recent");
+    setSearch("");
+  }, []);
+
+  const hasFilters = filter !== "all" || sort !== "recent" || search.trim() !== "";
 
   const handleVote = (pollId: number) => async (optionId: number) => {
     if (!isAuthenticated) {
       openAuthModal("login");
       return;
     }
-    try {
-      await voteOnPoll(pollId, optionId);
-    } catch (err) {
-      console.error(err);
-    }
+    await voteOnPoll(pollId, optionId).catch(console.error);
   };
 
   const handleLike = (pollId: number) => () => {
@@ -43,7 +92,7 @@ export default function ExplorePage() {
       openAuthModal("login");
       return;
     }
-    togglePollLike(pollId).catch((err) => console.error(err));
+    togglePollLike(pollId).catch(console.error);
   };
 
   const handleClose = (pollId: number) => () => {
@@ -51,89 +100,146 @@ export default function ExplorePage() {
       openAuthModal("login");
       return;
     }
-    closePoll(pollId).catch((err) => console.error(err));
+    closePoll(pollId).catch(console.error);
   };
 
   return (
-    <div className="space-y-12">
-      <section className="space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50">Live polls</h1>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Discover trending conversations and cast your vote in real time.
-            </p>
-          </div>
-          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
-            {activePolls.length} active poll{activePolls.length === 1 ? "" : "s"}
-          </span>
-        </header>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <header>
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          Explore
+        </h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          Discover and vote on community polls
+        </p>
+      </header>
 
+      {/* Search and Filters */}
+      <div className="space-y-3">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="Search polls..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={cn(
+              "w-full py-2 pl-9 pr-9 text-sm",
+              "bg-white dark:bg-zinc-900",
+              "border border-zinc-200 dark:border-zinc-800",
+              "text-zinc-900 dark:text-zinc-100",
+              "placeholder:text-zinc-400 dark:placeholder:text-zinc-500",
+              "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+            )}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1">
+            {(["all", "active", "closed"] as FilterStatus[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium transition-colors",
+                  filter === f
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                )}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortOption)}
+              className={cn(
+                "py-1.5 px-2 text-sm",
+                "bg-white dark:bg-zinc-900",
+                "border border-zinc-200 dark:border-zinc-800",
+                "text-zinc-700 dark:text-zinc-300",
+                "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+              )}
+            >
+              <option value="recent">Recent</option>
+              <option value="popular">Popular</option>
+              <option value="votes">Most voted</option>
+            </select>
+
+            {hasFilters && (
+              <button
+                onClick={clearAll}
+                className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Results count */}
+        <div className="text-xs text-zinc-500 dark:text-zinc-500">
+          {polls.length} {polls.length === 1 ? "poll" : "polls"}
+          {debouncedSearch && ` matching "${debouncedSearch}"`}
+        </div>
+      </div>
+
+      {/* Content */}
+      <section>
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+          <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="grid gap-4">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <PollSkeleton key={index} />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <PollSkeleton key={i} />
             ))}
           </div>
-        ) : activePolls.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-            <p className="text-base font-medium text-zinc-700 dark:text-zinc-200">No live polls at the moment</p>
-            <p className="max-w-sm">
-              Check back soon or create a poll to start a new conversation.
+        ) : polls.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-zinc-600 dark:text-zinc-400">
+              {search.trim() ? "No polls match your search" : "No polls yet"}
             </p>
+            {hasFilters && (
+              <button
+                onClick={clearAll}
+                className="mt-3 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {activePolls.map((poll) => (
+          <div className="space-y-3">
+            {polls.map((poll) => (
               <PollCard
                 key={poll.id}
                 poll={poll}
                 onVote={handleVote(poll.id)}
                 onToggleLike={handleLike(poll.id)}
                 onClose={handleClose(poll.id)}
-                isVoting={busyIds.has(poll.id)}
-                isLiking={busyIds.has(poll.id)}
-                isClosing={busyIds.has(poll.id)}
+                isVoting={busyPollIds.has(poll.id)}
+                isLiking={busyPollIds.has(poll.id)}
+                isClosing={busyPollIds.has(poll.id)}
                 interactionsEnabled={isAuthenticated}
                 canManage={Boolean(isAuthenticated && user && poll.creator_id === user.userId)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Archived polls</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Review final outcomes and compare how opinions shifted over time.
-            </p>
-          </div>
-          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
-            {closedPolls.length} archived poll{closedPolls.length === 1 ? "" : "s"}
-          </span>
-        </header>
-
-        {featuredClosedPolls.length === 0 ? (
-          <p className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300">
-            Closed polls will appear here once they wrap up.
-          </p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {featuredClosedPolls.map((poll) => (
-              <PollCard
-                key={`closed-${poll.id}`}
-                poll={poll}
-                onToggleLike={handleLike(poll.id)}
-                interactionsEnabled={isAuthenticated}
-                canManage={false}
               />
             ))}
           </div>

@@ -1,118 +1,132 @@
 "use client";
 
-import { HighlightsCard } from "@/components/dashboard/HighlightsCard";
+import { YourPolls } from "@/components/dashboard/YourPolls";
+import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { QuickActions } from "@/components/dashboard/QuickActions";
 import { usePollData } from "@/context/PollDataContext";
-import { Activity, BarChart3, Users, Heart, TrendingUp, Trophy } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useState, useMemo } from "react";
+import { useAuthModal } from "@/context/AuthModalContext";
 
 export default function DashboardPage() {
-  const { stats } = usePollData();
+  const { polls, loading } = usePollData();
+  const { user, status } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Header Section */}
-      <section className="rounded-xl p-8">
-        
-        <header className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                  <Activity className="h-3 w-3" />
-                  Live Dashboard
-                </span>
+  const userPolls = useMemo(() => {
+    if (!user) return [];
+    return polls.filter((poll) => poll.creator_id === user.userId);
+  }, [polls, user]);
 
-              </div>
-              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Welcome back</h1>
-            </div>
-          </div>
-          <p className="max-w-3xl text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            Monitor real-time engagement, track community participation, and discover trending polls across your platform.
+  const stats = useMemo(() => {
+    return {
+      polls: userPolls.length,
+      votes: userPolls.reduce((sum, p) => sum + p.total_votes, 0),
+      likes: userPolls.reduce((sum, p) => sum + p.total_likes, 0),
+    };
+  }, [userPolls]);
+
+  const handlePollClosed = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  // Unauthenticated
+  if (status === "unauthenticated") {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <div className="text-center space-y-6">
+          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+            Welcome to QuickPoll
+          </h1>
+          <p className="text-zinc-600 dark:text-zinc-400">
+            Create polls, gather opinions, and track engagement. Sign in to get started.
           </p>
-        </header>
+          <button
+            onClick={() => openAuthModal("login")}
+            className="px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+          >
+            Sign in
+          </button>
+        </div>
 
-        {/* Stats Grid */}
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Active Polls</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.activeCount.toLocaleString()}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
-                <Activity className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-              </div>
-            </div>
-          </div>
+        <div className="mt-12">
+          <p className="text-sm text-zinc-500 dark:text-zinc-500 mb-4">
+            Or explore what&apos;s happening
+          </p>
+          <QuickActions />
+        </div>
+      </div>
+    );
+  }
 
-          <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Closed Polls</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.closedCount.toLocaleString()}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-700">
-                <BarChart3 className="h-6 w-6 text-zinc-600 dark:text-zinc-400" />
-              </div>
-            </div>
-          </div>
+  // Loading - now handled by layout-level loading, but keep for poll data loading
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="h-24 bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+        <div className="h-40 bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+      </div>
+    );
+  }
 
-          <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Total Votes</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.totalVotes.toLocaleString()}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/50">
-                <Users className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-              </div>
-            </div>
-          </div>
+  // Authenticated
+  return (
+    <div className="max-w-4xl mx-auto space-y-8" key={refreshKey}>
+      {/* Header */}
+      <header>
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          Dashboard
+        </h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          Welcome back, {user?.username}
+        </p>
+      </header>
 
-          <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Total Likes</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.totalLikes.toLocaleString()}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/50">
-                <Heart className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Participation</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.participationRate}%</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-          </div>
-
-          {stats.topPoll && (
-            <div className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-800/40 p-6 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Top Performer</p>
-                  <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate">{stats.topPoll.title}</p>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/50">
-                  <Trophy className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                </div>
-              </div>
-            </div>
-          )}
+      {/* Stats */}
+      <section className="grid grid-cols-3 gap-4">
+        <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+          <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">
+            {stats.polls}
+          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Polls created</p>
+        </div>
+        <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+          <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">
+            {stats.votes.toLocaleString()}
+          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Total votes</p>
+        </div>
+        <div className="p-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+          <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">
+            {stats.likes.toLocaleString()}
+          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Total likes</p>
         </div>
       </section>
 
-      {/* Highlights Section */}
-      <HighlightsCard />
+      {/* Quick Actions */}
+      <section>
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+          Quick actions
+        </h2>
+        <QuickActions />
+      </section>
+
+      {/* Your Polls */}
+      <section>
+        <YourPolls
+          polls={userPolls}
+          userId={user!.userId}
+          onPollClosed={handlePollClosed}
+          loading={loading}
+        />
+      </section>
+
+      {/* Recent Activity */}
+      <section>
+        <RecentActivity userPolls={userPolls} personalMode={true} limit={10} />
+      </section>
     </div>
   );
 }

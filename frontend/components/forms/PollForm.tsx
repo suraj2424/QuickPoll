@@ -15,25 +15,25 @@ const MAX_OPTIONS = 6;
 
 type DurationPresetValue = number | "custom" | null;
 
-const SMART_DURATION_PRESETS: {
+const DURATION_PRESETS: {
   label: string;
   value: DurationPresetValue;
   helper?: string;
 }[] = [
-    { label: "No expiry", value: null, helper: "Poll stays open until closed manually" },
-    { label: "15 min", value: 15 },
-    { label: "1 hour", value: 60 },
-    { label: "24 hours", value: 60 * 24 },
-    { label: "Custom", value: "custom" },
-  ];
+  { label: "No expiry", value: null, helper: "Close manually" },
+  { label: "15 min", value: 15 },
+  { label: "1 hour", value: 60 },
+  { label: "24 hours", value: 60 * 24 },
+  { label: "Custom", value: "custom" },
+];
 
-const CUSTOM_DURATION_UNITS = [
+const DURATION_UNITS = [
   { label: "Minutes", value: "minutes", multiplier: 1 },
   { label: "Hours", value: "hours", multiplier: 60 },
   { label: "Days", value: "days", multiplier: 60 * 24 },
 ] as const;
 
-type CustomDurationUnit = (typeof CUSTOM_DURATION_UNITS)[number]["value"];
+type DurationUnit = (typeof DURATION_UNITS)[number]["value"];
 
 export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
   const [title, setTitle] = useState("");
@@ -41,47 +41,41 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
   const [options, setOptions] = useState<string[]>(["", ""]);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const defaultDurationPreset: DurationPresetValue = SMART_DURATION_PRESETS[3]?.value ?? null;
-  const [durationPreset, setDurationPreset] = useState<DurationPresetValue>(defaultDurationPreset);
-  const [customDurationValue, setCustomDurationValue] = useState<number>(1);
-  const [customDurationUnit, setCustomDurationUnit] = useState<CustomDurationUnit>("hours");
+  const [duration, setDuration] = useState<DurationPresetValue>(60 * 24);
+  const [customValue, setCustomValue] = useState<number>(1);
+  const [customUnit, setCustomUnit] = useState<DurationUnit>("hours");
 
   const isDisabled = disabled || isSubmitting;
 
   const canSubmit = useMemo(() => {
     if (!title.trim()) return false;
-    const sanitizedOptions = options.map((opt) => opt.trim()).filter(Boolean);
-    if (sanitizedOptions.length < MIN_OPTIONS) return false;
-    if (durationPreset === "custom" && (!customDurationValue || customDurationValue <= 0)) return false;
+    const validOptions = options.filter((opt) => opt.trim()).length;
+    if (validOptions < MIN_OPTIONS) return false;
+    if (duration === "custom" && (!customValue || customValue <= 0)) return false;
     return true;
-  }, [customDurationValue, durationPreset, options, title]);
+  }, [customValue, duration, options, title]);
+
+  const durationMinutes = useMemo(() => {
+    if (duration === null) return null;
+    if (typeof duration === "number") return duration;
+    if (duration === "custom" && customValue > 0) {
+      const unit = DURATION_UNITS.find((u) => u.value === customUnit);
+      return Math.round(customValue * (unit?.multiplier ?? 1));
+    }
+    return null;
+  }, [customUnit, customValue, duration]);
 
   const handleOptionChange = useCallback((index: number, value: string) => {
-    setOptions((prev) => prev.map((opt, idx) => (idx === index ? value : opt)));
+    setOptions((prev) => prev.map((opt, i) => (i === index ? value : opt)));
   }, []);
 
   const handleAddOption = useCallback(() => {
-    setOptions((prev) =>
-      prev.length < MAX_OPTIONS ? [...prev, ""] : prev,
-    );
+    setOptions((prev) => (prev.length < MAX_OPTIONS ? [...prev, ""] : prev));
   }, []);
 
   const handleRemoveOption = useCallback((index: number) => {
-    setOptions((prev) => prev.filter((_, idx) => idx !== index));
+    setOptions((prev) => prev.filter((_, i) => i !== index));
   }, []);
-
-  const durationMinutes = useMemo(() => {
-    if (durationPreset === null) return null;
-    if (typeof durationPreset === "number") {
-      return durationPreset > 0 ? durationPreset : null;
-    }
-    if (durationPreset === "custom") {
-      if (!customDurationValue || customDurationValue <= 0) return null;
-      const unit = CUSTOM_DURATION_UNITS.find((entry) => entry.value === customDurationUnit) ?? CUSTOM_DURATION_UNITS[0];
-      return Math.round(customDurationValue * unit.multiplier);
-    }
-    return null;
-  }, [customDurationUnit, customDurationValue, durationPreset]);
 
   const resetForm = useCallback(() => {
     setTitle("");
@@ -89,10 +83,10 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
     setOptions(["", ""]);
     setTouched(false);
     setError(null);
-    setDurationPreset(defaultDurationPreset);
-    setCustomDurationValue(1);
-    setCustomDurationUnit("hours");
-  }, [defaultDurationPreset]);
+    setDuration(60 * 24);
+    setCustomValue(1);
+    setCustomUnit("hours");
+  }, []);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -100,57 +94,51 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
       setTouched(true);
       setError(null);
 
-      const sanitizedOptions = options.map((opt) => opt.trim()).filter(Boolean);
-      if (!title.trim() || sanitizedOptions.length < MIN_OPTIONS) {
-        setError(
-          `Please provide a title and at least ${MIN_OPTIONS} options with text.`,
-        );
+      const validOptions = options.map((o) => o.trim()).filter(Boolean);
+      if (!title.trim() || validOptions.length < MIN_OPTIONS) {
+        setError(`Please provide a title and at least ${MIN_OPTIONS} options.`);
         return;
       }
 
-      if (durationPreset === "custom" && (!customDurationValue || customDurationValue <= 0)) {
-        setError("Please enter a valid custom duration greater than zero.");
+      if (duration === "custom" && (!customValue || customValue <= 0)) {
+        setError("Please enter a valid duration.");
         return;
       }
 
       try {
-        const payload: PollCreatePayload = {
+        await onSubmit({
           title: title.trim(),
           description: description.trim() || undefined,
-          options: sanitizedOptions,
-          duration_minutes:
-            durationPreset === null
-              ? null
-              : durationMinutes !== null
-                ? durationMinutes
-                : undefined,
-        };
-
-        await onSubmit(payload);
+          options: validOptions,
+          duration_minutes: durationMinutes,
+        });
         resetForm();
-      } catch (submissionError) {
-        console.error("Poll creation failed", submissionError);
+      } catch {
         setError("Failed to create poll. Please try again.");
       }
-    }, [customDurationValue, description, durationMinutes, durationPreset, onSubmit, options, resetForm, title]);
+    },
+    [customValue, description, duration, durationMinutes, onSubmit, options, resetForm, title]
+  );
 
   const showValidationError = touched && !canSubmit;
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 p-6 shadow-sm transition"
+      className="space-y-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6"
     >
+      {/* Header */}
       <div>
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           Create a Poll
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Add a question and between {MIN_OPTIONS} and {MAX_OPTIONS} options.
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          Add a question and {MIN_OPTIONS}-{MAX_OPTIONS} options.
         </p>
       </div>
 
-      <div className="space-y-2">
+      {/* Title */}
+      <div className="space-y-1.5">
         <label htmlFor="poll-title" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Title
         </label>
@@ -158,29 +146,43 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
           id="poll-title"
           type="text"
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(e) => setTitle(e.target.value)}
           disabled={isDisabled}
-          className="w-full rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
-          placeholder="What should we ask the community?"
+          className={cn(
+            "w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800",
+            "border border-zinc-200 dark:border-zinc-700",
+            "text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400",
+            "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
+          )}
+          placeholder="What should we ask?"
           required
         />
       </div>
 
-      <div className="space-y-2">
+      {/* Description */}
+      <div className="space-y-1.5">
         <label htmlFor="poll-description" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Description (optional)
+          Description <span className="text-zinc-400 font-normal">(optional)</span>
         </label>
         <textarea
           id="poll-description"
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(e) => setDescription(e.target.value)}
           disabled={isDisabled}
-          className="w-full rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
+          className={cn(
+            "w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800",
+            "border border-zinc-200 dark:border-zinc-700",
+            "text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400",
+            "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
+          )}
           placeholder="Add context or details"
-          rows={3}
+          rows={2}
         />
       </div>
 
+      {/* Options */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Options</span>
@@ -189,133 +191,139 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
             onClick={handleAddOption}
             disabled={isDisabled || options.length >= MAX_OPTIONS}
             className={cn(
-              "text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300",
-              (isDisabled || options.length >= MAX_OPTIONS) &&
-              "cursor-not-allowed opacity-50",
+              "text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
+              "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
-            + Add option
+            + Add
           </button>
         </div>
 
         <div className="space-y-2">
-          {options.map((option, index) => {
-            const optionId = `poll-option-${index}`;
-            return (
-              <div key={optionId} className="flex gap-2">
-                <input
-                  id={optionId}
-                  type="text"
-                  value={option}
-                  onChange={(event) =>
-                    handleOptionChange(index, event.target.value)
-                  }
-                  disabled={isDisabled}
-                  className="flex-1 rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
-                  placeholder={`Option ${index + 1}`}
-                  required={index < MIN_OPTIONS}
-                />
-                {options.length > MIN_OPTIONS && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveOption(index)}
-                    disabled={isDisabled}
-                    className="rounded-lg border border-transparent px-3 py-2 text-sm transition text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
-                  >
-                    Remove
-                  </button>
+          {options.map((option, index) => (
+            <div key={index} className="flex gap-2">
+              <input
+                type="text"
+                value={option}
+                onChange={(e) => handleOptionChange(index, e.target.value)}
+                disabled={isDisabled}
+                className={cn(
+                  "flex-1 px-3 py-2 text-sm bg-white dark:bg-zinc-800",
+                  "border border-zinc-200 dark:border-zinc-700",
+                  "text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400",
+                  "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
-              </div>
-            );
-          })}
+                placeholder={`Option ${index + 1}`}
+                required={index < MIN_OPTIONS}
+              />
+              {options.length > MIN_OPTIONS && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveOption(index)}
+                  disabled={isDisabled}
+                  className="px-2 text-sm text-zinc-400 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
+      {/* Duration */}
       <div className="space-y-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auto-close</span>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Choose how long this poll stays live. You can always close it manually sooner.
+        <div>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Duration</span>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+            When should this poll close?
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {SMART_DURATION_PRESETS.map((preset) => {
-            const isActive = durationPreset === preset.value;
+
+        <div className="flex flex-wrap gap-2">
+          {DURATION_PRESETS.map((preset) => {
+            const isActive = duration === preset.value;
             return (
               <button
                 key={preset.label}
                 type="button"
                 disabled={isDisabled}
-                onClick={() => setDurationPreset(preset.value)}
+                onClick={() => setDuration(preset.value)}
                 className={cn(
-                  "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left text-sm transition",
-                  "border-zinc-200 bg-white hover:border-indigo-200 hover:bg-indigo-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-indigo-500/60 dark:hover:bg-indigo-950/50",
-                  isActive && "border-indigo-300 bg-indigo-100 dark:border-indigo-500/70 dark:bg-indigo-500/10",
-                  isDisabled && "cursor-not-allowed opacity-60",
+                  "px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800",
+                  isDisabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {preset.label}
-                </span>
-                {preset.helper && (
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {preset.helper}
-                  </span>
-                )}
+                {preset.label}
               </button>
             );
           })}
         </div>
 
-        {durationPreset === "custom" && (
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">Amount</span>
+        {duration === "custom" && (
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Amount</label>
               <input
                 type="number"
                 min={1}
-                step={1}
-                value={customDurationValue}
+                value={customValue}
+                onChange={(e) => setCustomValue(Number(e.target.value) || 0)}
                 disabled={isDisabled}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setCustomDurationValue(Number.isFinite(value) ? value : 0);
-                }}
-                className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
+                className={cn(
+                  "w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800",
+                  "border border-zinc-200 dark:border-zinc-700",
+                  "text-zinc-900 dark:text-zinc-100",
+                  "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">Units</span>
+            </div>
+            <div className="w-32">
+              <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Unit</label>
               <select
-                value={customDurationUnit}
+                value={customUnit}
+                onChange={(e) => setCustomUnit(e.target.value as DurationUnit)}
                 disabled={isDisabled}
-                onChange={(event) => setCustomDurationUnit(event.target.value as CustomDurationUnit)}
-                className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
+                className={cn(
+                  "w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800",
+                  "border border-zinc-200 dark:border-zinc-700",
+                  "text-zinc-900 dark:text-zinc-100",
+                  "focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
               >
-                {CUSTOM_DURATION_UNITS.map((unit) => (
+                {DURATION_UNITS.map((unit) => (
                   <option key={unit.value} value={unit.value}>
                     {unit.label}
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Error */}
       {(error || showValidationError) && (
-        <p className="text-sm text-red-500">
-          {error ||
-            `Please provide at least ${MIN_OPTIONS} options with unique text.`}
-        </p>
+        <div className="p-3 border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error || `Please provide at least ${MIN_OPTIONS} options.`}
+          </p>
+        </div>
       )}
 
-      <div className="flex items-center justify-end gap-3">
+      {/* Actions */}
+      <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
           onClick={resetForm}
           disabled={isDisabled}
-          className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 disabled:opacity-50"
         >
           Reset
         </button>
@@ -323,8 +331,10 @@ export function PollForm({ onSubmit, isSubmitting, disabled }: PollFormProps) {
           type="submit"
           disabled={!canSubmit || isDisabled}
           className={cn(
-            "rounded-lg px-4 py-2 text-sm font-semibold text-white transition bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400",
-            (!canSubmit || isDisabled) && "cursor-not-allowed opacity-50",
+            "px-4 py-2 text-sm font-medium transition-colors",
+            "bg-zinc-900 text-white hover:bg-zinc-800",
+            "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200",
+            (!canSubmit || isDisabled) && "opacity-50 cursor-not-allowed"
           )}
         >
           {isSubmitting ? "Publishing..." : "Publish poll"}

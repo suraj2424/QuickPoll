@@ -48,6 +48,7 @@ export interface LikeResponse {
 export interface AuthUser {
   userId: number;
   username: string;
+  role: 'user' | 'admin';
 }
 
 export interface ApiError {

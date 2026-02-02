@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ComponentType } from "react";
 import {
   Compass,
   LayoutDashboard,
@@ -11,11 +11,18 @@ import {
   PlusCircle,
   Sun,
   ChevronDown,
+  Settings,
+  Shield,
+  Users,
+  Flag,
+  Vote,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuthModal } from "@/context/AuthModalContext";
+import { useRoleCheck } from "@/hooks/useRoleCheck";
 import { cn } from "@/lib/utils";
+import { UserRole } from "@/lib/rbac";
 
 type IconComponent = ComponentType<{ className?: string }>;
 
@@ -26,10 +33,30 @@ type NavItem = {
   requireAuth?: boolean;
 };
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/explore", label: "Explore", icon: Compass },
-  { href: "/create-poll", label: "Create poll", icon: PlusCircle, requireAuth: true },
+type NavSection = {
+  title?: string;
+  items: NavItem[];
+  requiresRole?: UserRole;
+};
+
+const navSections: NavSection[] = [
+  {
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/explore", label: "Explore", icon: Compass },
+      { href: "/create-poll", label: "Create Poll", icon: PlusCircle, requireAuth: true },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
+  {
+    title: "Admin",
+    requiresRole: "admin",
+    items: [
+      { href: "/admin", label: "Overview", icon: Shield },
+      { href: "/admin/users", label: "Users", icon: Users },
+      { href: "/admin/moderation", label: "Moderation", icon: Flag },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -37,56 +64,77 @@ export function AppSidebar() {
   const { theme, toggleTheme } = useTheme();
   const { user, status, logout } = useAuth();
   const { open: openAuthModal } = useAuthModal();
+  const { hasAccess } = useRoleCheck();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const isAuthenticated = status === "authenticated" && Boolean(user);
 
-  const primaryNav = useMemo(
-    () =>
-      navItems.map((item) => {
-        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        const ItemIcon = item.icon;
+  const renderNavItem = useCallback(
+    (item: NavItem) => {
+      const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      const ItemIcon = item.icon;
 
-        if (item.requireAuth && !isAuthenticated) {
-          return (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => openAuthModal("login")}
-              className="group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
-            >
-              <span className="flex items-center gap-3">
-                <ItemIcon className="h-4 w-4 transition-colors group-hover:text-primary-600" />
-                {item.label}
-              </span>
-              <span className="text-xs text-foreground-tertiary">Sign in</span>
-            </button>
-          );
-        }
-
+      if (item.requireAuth && !isAuthenticated) {
         return (
-          <Link 
-            key={item.href} 
-            href={item.href} 
+          <button
+            key={item.href}
+            type="button"
+            onClick={() => openAuthModal("login")}
             className={cn(
-              "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500",
-              isActive
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
+              "group flex w-full items-center justify-between px-3 py-2 text-sm",
+              "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100",
+              "dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800",
+              "transition-colors focus:outline-none"
             )}
           >
-            <ItemIcon className={cn(
-              "h-4 w-4 transition-colors",
-              isActive 
-                ? "text-white" 
-                : "text-zinc-500 group-hover:text-indigo-600 dark:text-zinc-500 dark:group-hover:text-indigo-400"
-            )} />
-            {item.label}
-          </Link>
+            <span className="flex items-center gap-3">
+              <ItemIcon className="h-4 w-4" />
+              {item.label}
+            </span>
+            <span className="text-xs text-zinc-400">Sign in</span>
+          </button>
         );
-      }),
-    [isAuthenticated, openAuthModal, pathname, theme],
+      }
+
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 text-sm transition-colors",
+            "focus:outline-none",
+            isActive
+              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+              : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
+          )}
+        >
+          <ItemIcon className="h-4 w-4" />
+          {item.label}
+        </Link>
+      );
+    },
+    [pathname, isAuthenticated, openAuthModal]
   );
+
+  const navigationSections = useMemo(() => {
+    return navSections
+      .filter((section) => {
+        if (section.requiresRole) {
+          return hasAccess([section.requiresRole]);
+        }
+        return true;
+      })
+      .map((section, index) => (
+        <div key={section.title || index}>
+          {section.title && (
+            <p className="px-3 mb-2 text-xs font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+              {section.title}
+            </p>
+          )}
+          <div className="space-y-0.5">{section.items.map((item) => renderNavItem(item))}</div>
+        </div>
+      ));
+  }, [hasAccess, renderNavItem]);
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -100,99 +148,90 @@ export function AppSidebar() {
   }, [userMenuOpen]);
 
   return (
-    <aside className="fixed inset-y-0 z-40 flex w-72 flex-col border-r border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 shadow-sm">
+    <aside className="hidden md:flex fixed inset-y-0 z-40 w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       {/* Header */}
-      <div className="flex h-16 items-center justify-between px-6 border-b border-zinc-200 dark:border-zinc-700">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 text-xl font-bold text-zinc-900 dark:text-zinc-100 transition-colors hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-md"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm">
-            Q
+      <div className="flex h-14 items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800">
+        <Link href="/dashboard" className="flex items-center gap-2 group">
+          {/* Logo Icon */}
+          <div className="flex h-8 w-8 items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500">
+            <Vote className="h-4 w-4 text-white" />
           </div>
-          QuickPoll
+          {/* Logo Text */}
+          <div className="flex flex-col">
+            <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
+              Quick<span className="text-indigo-600 dark:text-indigo-400">Poll</span>
+            </span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-none">
+              Real-time voting
+            </span>
+          </div>
         </Link>
         <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </button>
+          type="button"
+          onClick={toggleTheme}
+          className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-6">
-        <div className="space-y-1">
-          {primaryNav}
-        </div>
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        <div className="space-y-6">{navigationSections}</div>
       </nav>
 
       {/* User Section */}
-      <div className="border-t border-zinc-200 dark:border-zinc-700 p-4">
+      <div className="border-t border-zinc-200 dark:border-zinc-800 p-3">
         {isAuthenticated ? (
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setUserMenuOpen((open) => !open)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500",
-                "bg-zinc-50 hover:bg-zinc-200 text-zinc-900 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-100",
-                userMenuOpen && "bg-zinc-200 dark:bg-zinc-700"
+                "flex w-full items-center gap-3 px-3 py-2 text-sm text-left transition-colors",
+                "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                userMenuOpen && "bg-zinc-100 dark:bg-zinc-800"
               )}
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-white text-xs font-semibold">
+              <div className="flex h-7 w-7 items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs font-semibold">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="truncate font-medium">{user?.username}</p>
-                <p className="text-xs text-foreground-tertiary">Account</p>
-              </div>
-              <ChevronDown className={cn(
-                "h-4 w-4 text-zinc-500 dark:text-zinc-400 transition-transform",
-                userMenuOpen && "rotate-180"
-              )} />
+              <span className="flex-1 truncate text-zinc-900 dark:text-zinc-100">
+                {user?.username}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-zinc-400 transition-transform",
+                  userMenuOpen && "rotate-180"
+                )}
+              />
             </button>
-            
+
             {userMenuOpen && (
-              <div className="absolute bottom-full left-0 mb-2 w-full rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 shadow-lg animate-in slide-in-from-bottom-2 duration-200">
-                <div className="p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      logout();
-                    }}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
+              <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-zinc-100 dark:text-red-400 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
               </div>
             )}
           </div>
         ) : (
-          <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 p-4 space-y-3">
-            <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Join QuickPoll</h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Sign in to vote, like, and create polls.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => openAuthModal("login")}
-              className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              Sign in / Register
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => openAuthModal("login")}
+            className="w-full px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+          >
+            Sign in
+          </button>
         )}
       </div>
     </aside>

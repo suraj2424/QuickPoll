@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, JSON
+from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -10,8 +10,10 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     email = Column(String, unique=True, index=True)
     password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    role = Column(String(20), default="user", nullable=False)
+    preferences = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # relationships
     polls = relationship("Poll", back_populates="creator")

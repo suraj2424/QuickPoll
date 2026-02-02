@@ -6,7 +6,7 @@ from fastapi import (
     Query,
     status,
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -30,7 +30,7 @@ def create_poll(
     # Create poll
     closes_at = poll.closes_at
     if poll.duration_minutes is not None and poll.duration_minutes > 0:
-        closes_at = datetime.utcnow() + timedelta(minutes=poll.duration_minutes)
+        closes_at = datetime.now(timezone.utc) + timedelta(minutes=poll.duration_minutes)
 
     db_poll = Poll(
         title=poll.title,
@@ -185,10 +185,16 @@ def get_poll_with_stats(poll_id: int, db: Session, user_id: Optional[int] = None
         raise HTTPException(status_code=404, detail="Poll not found")
     
     # Auto-close if past scheduled end
-    if db_poll.is_active and db_poll.closes_at and db_poll.closes_at <= datetime.utcnow():
-        db_poll.is_active = False
-        db.commit()
-        db.refresh(db_poll)
+    now = datetime.now(timezone.utc)
+    if db_poll.is_active and db_poll.closes_at:
+        closes_at = db_poll.closes_at
+        # Handle timezone-naive closes_at by assuming UTC
+        if closes_at.tzinfo is None:
+            closes_at = closes_at.replace(tzinfo=timezone.utc)
+        if closes_at <= now:
+            db_poll.is_active = False
+            db.commit()
+            db.refresh(db_poll)
 
     # Get options with vote counts
     options_with_counts = db.query(

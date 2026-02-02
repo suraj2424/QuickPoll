@@ -6,6 +6,8 @@ from app.routes.polls import router as polls_router
 from app.routes.votes import router as votes_router
 from app.routes.options import router as options_router
 from app.routes.likes import router as likes_router
+from app.routes.analytics import router as analytics_router
+from app.routes.admin import router as admin_router
 from app.websocket import manager
 
 
@@ -39,6 +41,8 @@ app.include_router(polls_router, prefix="/polls", tags=["polls"])
 app.include_router(votes_router, prefix="/votes", tags=["votes"])
 app.include_router(options_router, prefix="/options", tags=["options"])
 app.include_router(likes_router, prefix="/likes", tags=["likes"])
+app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 @app.websocket("/ws/{poll_id}")
 async def websocket_endpoint(websocket: WebSocket, poll_id: int):

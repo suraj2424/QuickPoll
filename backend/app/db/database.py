@@ -25,6 +25,7 @@ def init_db():
     import app.models.vote
     import app.models.like
     import app.models.user
+    import app.models.admin_action
     Base.metadata.create_all(bind=engine)
 
 # Initialize database

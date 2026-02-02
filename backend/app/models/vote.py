@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -10,7 +10,7 @@ class Vote(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     poll_id = Column(Integer, ForeignKey("polls.id"), nullable=False)
     option_id = Column(Integer, ForeignKey("options.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Ensure one vote per user per poll
     __table_args__ = (UniqueConstraint('user_id', 'poll_id', name='unique_user_poll_vote'),)
