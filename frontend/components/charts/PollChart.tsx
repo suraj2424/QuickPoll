@@ -67,9 +67,16 @@ export function PollChart({ title, options, type = "bar" }: PollChartProps) {
                 outerRadius={80}
                 paddingAngle={2}
                 dataKey="value"
-                label={({ name, percent }) =>
-                  `${name.slice(0, 10)}... (${(percent * 100).toFixed(0)}%)`
-                }
+                label={({ name, percent }) => {
+                  const safeName = typeof name === "string" ? name : "";
+                  const safePercent = typeof percent === "number" ? percent : 0;
+                  if (!safeName) {
+                    return `${(safePercent * 100).toFixed(0)}%`;
+                  }
+                  const shortName =
+                    safeName.length > 10 ? `${safeName.slice(0, 10)}...` : safeName;
+                  return `${shortName} (${(safePercent * 100).toFixed(0)}%)`;
+                }}
                 labelLine={false}
               >
                 {pieData.map((entry, index) => (
