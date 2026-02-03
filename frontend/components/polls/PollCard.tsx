@@ -69,6 +69,54 @@ function formatRelativeTime(date: Date): string {
   return "Just now";
 }
 
+// Color schemes for each option position (0-5)
+const OPTION_COLORS = [
+  {
+    bar: "bg-indigo-50 dark:bg-indigo-950/40",
+    border: "border-l-indigo-500 dark:border-l-indigo-400",
+    hover: "hover:border-indigo-300 dark:hover:border-indigo-600",
+  },
+  {
+    bar: "bg-purple-50 dark:bg-purple-950/40",
+    border: "border-l-purple-500 dark:border-l-purple-400",
+    hover: "hover:border-purple-300 dark:hover:border-purple-600",
+  },
+  {
+    bar: "bg-blue-50 dark:bg-blue-950/40",
+    border: "border-l-blue-500 dark:border-l-blue-400",
+    hover: "hover:border-blue-300 dark:hover:border-blue-600",
+  },
+  {
+    bar: "bg-cyan-50 dark:bg-cyan-950/40",
+    border: "border-l-cyan-500 dark:border-l-cyan-400",
+    hover: "hover:border-cyan-300 dark:hover:border-cyan-600",
+  },
+  {
+    bar: "bg-teal-50 dark:bg-teal-950/40",
+    border: "border-l-teal-500 dark:border-l-teal-400",
+    hover: "hover:border-teal-300 dark:hover:border-teal-600",
+  },
+  {
+    bar: "bg-emerald-50 dark:bg-emerald-950/40",
+    border: "border-l-emerald-500 dark:border-l-emerald-400",
+    hover: "hover:border-emerald-300 dark:hover:border-emerald-600",
+  },
+];
+
+// Winner color
+const WINNER_COLORS = {
+  bar: "bg-emerald-100 dark:bg-emerald-900/50",
+  border: "border-l-emerald-500 dark:border-l-emerald-400",
+};
+
+interface PollOptionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  votes: number;
+  totalVotes: number;
+  isWinner?: boolean;
+  isClosed?: boolean;
+  index: number; // Add index prop to determine color
+}
+
 function PollOptionButton({
   votes,
   totalVotes,
@@ -76,10 +124,14 @@ function PollOptionButton({
   children,
   isWinner,
   isClosed,
+  index,
   ...props
 }: PollOptionButtonProps) {
   const percentage = totalVotes === 0 ? 0 : (votes / Math.max(totalVotes, 1)) * 100;
   const barWidth = Math.min(100, Math.max(percentage, votes > 0 ? 2 : 0));
+  
+  // Get color scheme based on index (wrap around if > 5)
+  const colorScheme = OPTION_COLORS[index % OPTION_COLORS.length];
 
   return (
     <button
@@ -88,30 +140,29 @@ function PollOptionButton({
         "border bg-white dark:bg-zinc-900",
         "focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-1",
         "dark:focus:ring-zinc-500 dark:focus:ring-offset-zinc-900",
-        // Default border - very subtle
+        // Default border
         "border-zinc-200 dark:border-zinc-800",
+        // Left border accent (always visible)
+        "border-l-2",
+        isWinner ? WINNER_COLORS.border : colorScheme.border,
         // Interactive states
         !isClosed && [
-          "hover:border-zinc-400 dark:hover:border-zinc-600",
+          colorScheme.hover,
           "cursor-pointer",
         ],
         // Closed state
         isClosed && "cursor-default",
-        // Winner - subtle green left border accent only
-        isWinner && "border-l-2 border-l-emerald-500 dark:border-l-emerald-400",
         className
       )}
       type="button"
       disabled={isClosed || props.disabled}
       {...props}
     >
-      {/* Progress bar background - very subtle */}
+      {/* Progress bar background */}
       <div
         className={cn(
           "absolute inset-0 transition-all duration-300",
-          isWinner
-            ? "bg-emerald-50 dark:bg-emerald-950/30"
-            : "bg-zinc-50 dark:bg-zinc-800/50"
+          isWinner ? WINNER_COLORS.bar : colorScheme.bar
         )}
         style={{ width: `${barWidth}%` }}
       />
@@ -226,10 +277,18 @@ export function PollCard({
         )}
 
         {/* Meta info - single line */}
-        <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-500">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-500">
           <span>{totalVotes.toLocaleString()} votes</span>
-          <span className="text-zinc-300 dark:text-zinc-700">·</span>
-          <span>{createdAt ? formatRelativeTime(createdAt) : "—"}</span>
+          <span className="text-zinc-300 dark:text-zinc-700">|</span>
+          <span>{createdAt ? formatRelativeTime(createdAt) : "-"}</span>
+          {poll.creator_username && (
+            <>
+              <span className="text-zinc-300 dark:text-zinc-700">|</span>
+              <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                by {poll.creator_username}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -248,8 +307,7 @@ export function PollCard({
               isWinner={isWinner}
               isClosed={isClosed}
               onClick={handleVoteClick}
-              disabled={!canVote || isVoting}
-            >
+              disabled={!canVote || isVoting} index={option.id}            >
               {option.text}
             </PollOptionButton>
           );
@@ -294,7 +352,7 @@ export function PollCard({
               isClosing && "opacity-50 cursor-not-allowed"
             )}
           >
-            {isClosing ? "Closing…" : "Close poll"}
+            {isClosing ? "Closing..." : "Close poll"}
           </button>
         )}
       </div>

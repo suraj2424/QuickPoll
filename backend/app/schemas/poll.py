@@ -35,6 +35,7 @@ class PollUpdate(BaseModel):
 class PollResponse(PollBase):
     id: int
     creator_id: int
+    creator_username: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool

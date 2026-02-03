@@ -11,6 +11,7 @@ export interface Poll {
   title: string;
   description?: string | null;
   creator_id: number;
+  creator_username?: string | null;
   created_at: string;
   updated_at: string;
   is_active: boolean;

@@ -20,13 +20,18 @@ export const metadata: Metadata = {
   description: "Real-time opinion polling platform",
 };
 
+const themeInitScript = `(function(){try{var key="quickpoll:theme";var stored=localStorage.getItem(key);var theme=stored==="light"||stored==="dark"?stored:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var root=document.documentElement;root.dataset.theme=theme;root.classList.remove("light","dark");if(theme==="dark"){root.classList.add("dark");}var metaName="color-scheme";var meta=document.head.querySelector('meta[name="'+metaName+'"]');if(!meta){meta=document.createElement("meta");meta.name=metaName;document.head.appendChild(meta);}meta.content=theme==="dark"?"dark light":"light dark";}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -15,6 +15,7 @@ from app.models.poll import Poll
 from app.models.option import Option
 from app.models.vote import Vote
 from app.models.like import Like
+from app.models.user import User
 from app.schemas.poll import PollCreate, PollResponse, PollUpdate, OptionResponse
 from app.websocket import manager
 
@@ -224,11 +225,14 @@ def get_poll_with_stats(poll_id: int, db: Session, user_id: Optional[int] = None
         user_voted = db.query(Vote).filter(Vote.poll_id == poll_id, Vote.user_id == user_id).first() is not None
         user_liked = db.query(Like).filter(Like.poll_id == poll_id, Like.user_id == user_id).first() is not None
     
+    creator = db.query(User).filter(User.id == db_poll.creator_id).first()
+
     return PollResponse(
         id=db_poll.id,
         title=db_poll.title,
         description=db_poll.description,
         creator_id=db_poll.creator_id,
+        creator_username=creator.username if creator else None,
         created_at=db_poll.created_at,
         updated_at=db_poll.updated_at,
         is_active=db_poll.is_active,

@@ -91,7 +91,7 @@ export function AppSidebar() {
               <ItemIcon className="h-4 w-4" />
               {item.label}
             </span>
-            <span className="text-xs text-zinc-400">Sign in</span>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">Sign in</span>
           </button>
         );
       }
@@ -104,7 +104,7 @@ export function AppSidebar() {
             "flex items-center gap-3 px-3 py-2 text-sm transition-colors",
             "focus:outline-none",
             isActive
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+              ? "bg-indigo-500 text-white"
               : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
           )}
         >
@@ -151,15 +151,16 @@ export function AppSidebar() {
     <aside className="hidden md:flex fixed inset-y-0 z-40 w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       {/* Header */}
       <div className="flex h-14 items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800">
-        <Link href="/dashboard" className="flex items-center gap-2 group">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
           {/* Logo Icon */}
-          <div className="flex h-8 w-8 items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500">
+          <div className="flex h-8 w-8 items-center justify-center bg-indigo-500">
             <Vote className="h-4 w-4 text-white" />
           </div>
           {/* Logo Text */}
           <div className="flex flex-col">
-            <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
-              Quick<span className="text-indigo-600 dark:text-indigo-400">Poll</span>
+            <span className="text-base font-bold leading-tight">
+              <span className="text-zinc-900 dark:text-zinc-100">Quick</span>
+              <span className="text-indigo-600 dark:text-indigo-400">Poll</span>
             </span>
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-none">
               Real-time voting
@@ -169,7 +170,7 @@ export function AppSidebar() {
         <button
           type="button"
           onClick={toggleTheme}
-          className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+          className="p-2 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors"
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -194,15 +195,20 @@ export function AppSidebar() {
                 userMenuOpen && "bg-zinc-100 dark:bg-zinc-800"
               )}
             >
-              <div className="flex h-7 w-7 items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs font-semibold">
+              <div className="flex h-7 w-7 items-center justify-center bg-indigo-500 text-white text-xs font-semibold">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </div>
-              <span className="flex-1 truncate text-zinc-900 dark:text-zinc-100">
-                {user?.username}
-              </span>
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {user?.username}
+                </p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                  {user?.role === "admin" ? "Administrator" : "Member"}
+                </p>
+              </div>
               <ChevronDown
                 className={cn(
-                  "h-4 w-4 text-zinc-400 transition-transform",
+                  "h-4 w-4 text-zinc-400 transition-transform duration-200",
                   userMenuOpen && "rotate-180"
                 )}
               />
@@ -210,17 +216,27 @@ export function AppSidebar() {
 
             {userMenuOpen && (
               <div className="absolute bottom-full left-0 mb-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    logout();
-                  }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-zinc-100 dark:text-red-400 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign out
-                </button>
+                <div className="p-1">
+                  <Link
+                    href="/settings"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -228,7 +244,11 @@ export function AppSidebar() {
           <button
             type="button"
             onClick={() => openAuthModal("login")}
-            className="w-full px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+            className={cn(
+              "w-full px-4 py-2.5 text-sm font-medium transition-colors text-center",
+              "bg-indigo-500 text-white",
+              "hover:bg-indigo-600"
+            )}
           >
             Sign in
           </button>
